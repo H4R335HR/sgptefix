@@ -12,7 +12,14 @@
 - **Verifies Setup**: Runs a test prompt to ensure SGPT is working correctly with the remote Ollama server.
 
 ## Usage:
-To use this script, run it with the remote Ollama server's IP and the model name as arguments. For example:
+1. To use this script, first initialize sgpt
+
+```bash
+sgpt
+```
+Provide any Fake key when prompted
+
+2. Run it with the remote Ollama server's IP and the model name as arguments. For example:
 
 ```bash
 python sgptefix.py <remote_ollama_ip> <model_name>
