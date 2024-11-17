@@ -51,7 +51,20 @@ def run_command(command, input_text=None):
     except subprocess.CalledProcessError as e:
         print(f"Error running command: {command}\n{e}")
         sys.exit(1)
-        
+
+def initialize_sgpt():
+    print("Initializing sgpt to generate the config file...")
+    # Set a fake API key in the environment for sgpt initialization
+    env = os.environ.copy()
+    env["OPENAI_API_KEY"] = "gibberish"  # Fake key to generate the config file
+
+    try:
+        subprocess.run(["sgpt", "test"], env=env, check=True)
+        print("sgpt initialized successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error initializing sgpt: {e}")
+        sys.exit(1)
+
 def main():
     if len(sys.argv) != 3:
         print("Usage: python3 setup_sgpt.py <IP> <MODEL>")
@@ -71,7 +84,7 @@ def main():
 
     # Step 3: Run sgpt to generate the config file
     print("Initializing sgpt to generate the config file...")
-    run_command("echo 'gibberish' | sgpt")
+    initialize_sgpt()
 
     # Step 4: Update the sgptrc config file
     print("Updating sgptrc config file...")
