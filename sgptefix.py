@@ -54,12 +54,10 @@ def run_command(command, input_text=None):
 
 def initialize_sgpt():
     print("Initializing sgpt to generate the config file...")
-    # Set a fake API key in the environment for sgpt initialization
-    env = os.environ.copy()
-    env["OPENAI_API_KEY"] = "gibberish"  # Fake key to generate the config file
-
+    print("Please enter a placeholder API key when prompted (e.g., 'testkey' or any gibberish):")
+    
     try:
-        subprocess.run(["sgpt", "test"], env=env, check=True)
+        subprocess.run(["sgpt", "test"], check=True)
         print("sgpt initialized successfully.")
     except subprocess.CalledProcessError as e:
         print(f"Error initializing sgpt: {e}")
