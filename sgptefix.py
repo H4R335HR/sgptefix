@@ -38,6 +38,20 @@ def update_sgptrc(ip, model):
         print(f"Error: Config file {sgptrc_path} not found. Ensure sgpt was initialized properly.")
         sys.exit(1)
 
+def run_command(command, input_text=None):
+    try:
+        result = subprocess.run(
+            command,
+            input=input_text,
+            text=True,
+            check=True,
+            shell=True,
+        )
+        return result.returncode
+    except subprocess.CalledProcessError as e:
+        print(f"Error running command: {command}\n{e}")
+        sys.exit(1)
+        
 def main():
     if len(sys.argv) != 3:
         print("Usage: python3 setup_sgpt.py <IP> <MODEL>")
