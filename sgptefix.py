@@ -82,7 +82,7 @@ def main():
 
     # Step 3: Run sgpt to generate the config file
     print("Initializing sgpt to generate the config file...")
-    initialize_sgpt()
+    run_command("sgpt")
 
     # Step 4: Update the sgptrc config file
     print("Updating sgptrc config file...")
