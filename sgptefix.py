@@ -217,7 +217,7 @@ Note: This script requires sudo privileges to install and configure shell-gpt.
     if not is_litellm_installed():
         print("shell-gpt with litellm support not found. Installing...")
         run_command("pip uninstall shell-gpt -y", use_sudo=True)
-        run_command("pip install shell-gpt[litellm]", use_sudo=True)
+        run_command("pip install shell-gpt[litellm]", use_sudo=False)
     else:
         print("shell-gpt with litellm support is already installed. Skipping installation.")
 
