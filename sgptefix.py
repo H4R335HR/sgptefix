@@ -1,6 +1,9 @@
+#!/usr/bin/env python3
+
 import os
 import subprocess
 import sys
+import argparse
 
 def get_real_user():
     """Get the actual user even when script is run with sudo"""
@@ -21,11 +24,8 @@ def is_litellm_installed():
             capture_output=True,
             check=True
         )
-        
         packages = result.stdout.lower()
-        
         return "shell_gpt" in packages and "litellm" in packages
-        
     except subprocess.CalledProcessError:
         return False
 
@@ -42,25 +42,22 @@ def is_config_already_modified(ip, model):
     try:
         with open(sgptrc_path, "r") as file:
             content = file.read()
-            
-        required_settings = [
-            f"DEFAULT_MODEL={model}",
-            f"API_BASE_URL=http://{ip}:11434",
-            "OPENAI_USE_FUNCTIONS=false",
-            "USE_LITELLM=true"
-        ]
-        
-        return all(setting in content for setting in required_settings)
+            required_settings = [
+                f"DEFAULT_MODEL={model}",
+                f"API_BASE_URL=http://{ip}:11434",
+                "OPENAI_USE_FUNCTIONS=false",
+                "USE_LITELLM=true"
+            ]
+            return all(setting in content for setting in required_settings)
     except FileNotFoundError:
         return False
-
 def update_sgptrc(ip, model):
     real_home = get_real_home()
     sgptrc_path = os.path.join(real_home, '.config/shell_gpt/.sgptrc')
     try:
         with open(sgptrc_path, "r") as file:
             lines = file.readlines()
-            
+
         modified = False
         for i, line in enumerate(lines):
             if line.startswith("DEFAULT_MODEL="):
@@ -80,11 +77,10 @@ def update_sgptrc(ip, model):
             print("No changes were made to the config file.")
             return
 
-        # Write the modified lines back to the file
         with open(sgptrc_path, "w") as file:
             file.writelines(lines)
         print(f"Updated {sgptrc_path} successfully.")
-        
+
     except FileNotFoundError:
         print(f"Error: Config file {sgptrc_path} not found. Ensure sgpt was initialized properly.")
         sys.exit(1)
@@ -109,7 +105,6 @@ def run_sgpt_command(command):
     """Run sgpt command as the real user with proper path"""
     real_user = get_real_user()
     sgpt_path = subprocess.check_output(['which', 'sgpt']).decode().strip()
-    
     try:
         if real_user:
             env = os.environ.copy()
@@ -118,11 +113,9 @@ def run_sgpt_command(command):
         else:
             full_command = f'{sgpt_path} {command}'
             subprocess.run(full_command, check=True, shell=True)
-        
     except subprocess.CalledProcessError as e:
         print(f"Error running sgpt command: {e}")
         sys.exit(1)
-
 def initialize_sgpt():
     print("Initializing sgpt to generate the config file...")
     print("Please enter a placeholder API key when prompted (e.g., 'testkey' or any gibberish):")
@@ -133,21 +126,94 @@ def initialize_sgpt():
         print(f"Error initializing sgpt: {e}")
         sys.exit(1)
 
+def format_model_name(model_name):
+    """Add ollama/ prefix to model name"""
+    return f"ollama/{model_name}"
+
+def get_available_models(ip):
+    """Fetch and return available models from the Ollama server"""
+    try:
+        result = subprocess.run(
+            f"curl -s http://{ip}:11434/api/tags | jq -r '.models[].name'",
+            shell=True,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        original_models = result.stdout.strip().split('\n')
+        models_dict = {format_model_name(model): model for model in original_models}
+        return models_dict
+    except subprocess.CalledProcessError:
+        print(f"Error: Unable to fetch models from {ip}")
+        sys.exit(1)
+
+def select_model(models_dict):
+    """Display available models and let user select one"""
+    display_models = list(models_dict.keys())
+    print("\nAvailable models:")
+    for i, model in enumerate(display_models, 1):
+        print(f"{i}. {model}")
+    
+    while True:
+        try:
+            choice = int(input("\nSelect a model (enter number): "))
+            if 1 <= choice <= len(display_models):
+                selected_display_model = display_models[choice-1]
+                return selected_display_model, models_dict[selected_display_model]
+            print("Invalid selection. Please try again.")
+        except ValueError:
+            print("Please enter a valid number.")
 def main():
+    parser = argparse.ArgumentParser(
+        description='Setup shell-gpt (sgpt) with Ollama server',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples:
+    sudo python3 setup_sgpt.py -i 192.168.1.100
+    sudo python3 setup_sgpt.py --ip 192.168.1.100
+    sudo python3 setup_sgpt.py -i 192.168.1.100 -m ollama/llama3.2:latest
+    sudo python3 setup_sgpt.py --ip 192.168.1.100 --model ollama/deepseek-coder-v2:latest
+    sudo python3 setup_sgpt.py -i 192.168.1.100 -p 11434
+    
+Note: This script requires sudo privileges to install and configure shell-gpt.
+      If --model/-m is not specified, the script will fetch available models from the Ollama server 
+      and let you select one.
+        '''
+    )
+    
+    parser.add_argument('-i', '--ip', required=True, 
+                       help='IP address of the Ollama server')
+    parser.add_argument('-p', '--port', default='11434', 
+                       help='Port of the Ollama server (default: 11434)')
+    parser.add_argument('-m', '--model', 
+                       help='Specific model to use (format: ollama/<model_name>)')
+    
+    args = parser.parse_args()
+
     # Check if script is run with sudo
     if os.geteuid() != 0:
-        print("This script needs to be run with sudo privileges.")
-        sys.exit(1)
+        parser.error("This script needs to be run with sudo privileges.")
 
-    if len(sys.argv) != 3:
-        print("Usage: sudo python3 setup_sgpt.py <IP> <MODEL>")
-        print("Example: sudo python3 setup_sgpt.py 192.168.1.100 ollama/deepseek-coder-v2:latest")
-        sys.exit(1)
+    display_model = args.model
+    original_model = None
 
-    ip = sys.argv[1]
-    model = sys.argv[2]
+    if not display_model:
+        print(f"Fetching available models from {args.ip}...")
+        models_dict = get_available_models(args.ip)
+        
+        if not models_dict:
+            print("No models found on the server.")
+            sys.exit(1)
+        
+        display_model, original_model = select_model(models_dict)
+    else:
+        if not display_model.startswith('ollama/'):
+            print("Error: Model name should start with 'ollama/'. Example: ollama/llama3.2:latest")
+            sys.exit(1)
+        original_model = display_model.replace('ollama/', '', 1)
 
-    # Check if shell-gpt with litellm is already installed
+    print(f"\nUsing model: {display_model}")
+
     if not is_litellm_installed():
         print("shell-gpt with litellm support not found. Installing...")
         run_command("pip uninstall shell-gpt -y", use_sudo=True)
@@ -155,21 +221,18 @@ def main():
     else:
         print("shell-gpt with litellm support is already installed. Skipping installation.")
 
-    # Check if config exists
     if not check_config_exists():
         print("Config file not found. Initializing sgpt...")
         initialize_sgpt()
     else:
         print("Config file already exists. Skipping initialization.")
 
-    # Check if config is already modified as needed
-    if not is_config_already_modified(ip, model):
+    if not is_config_already_modified(args.ip, display_model):
         print("Updating config file with new settings...")
-        update_sgptrc(ip, model)
+        update_sgptrc(args.ip, display_model)
     else:
         print("Config file is already properly configured. Skipping modification.")
 
-    # Test sgpt with a sample prompt
     print("Testing sgpt with a sample prompt...")
     run_sgpt_command('"Hello, how are you?"')
 
